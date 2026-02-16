@@ -335,7 +335,7 @@ inline int Board64_t::eval(const bool _white)
         wh &= wh - 1;
     }
     while (bl) {
-        int line = (ffsll(bl) - 1) / 8;
+        int line = ((ffsll(bl) - 1) / 8);// + 1 ?;
         score -= line;
         bl &= bl - 1;
     }
@@ -549,10 +549,6 @@ inline void Board64_t::rand_white_move() {
     apply_white_move(get_rand_white_move());
 }
 
-
-
-
-
 inline Move64_t Board64_t::get_rand_black_move(const Lfr_t &lfr) {
     uint64_t nb_wl = count64(lfr.left);
     uint64_t nb_wf = count64(lfr.forward);
@@ -620,29 +616,21 @@ inline void Board64_t::seq_playout(bool _white) {
 
 
 inline Move64_t Board64_t::get_min_max_white_move(const Lfr_t &lfr) {
-    Move64_t m;
-    bool maxing = MINIMAX_MAX_DEPTH % 2 ? true : false;
-    std::vector<Move64_t> M = lfr.get_white_moves();
-    int best_v = maxing ? INT_MAX : -INT_MAX;
-    for (Move64_t mt : M){
-        Board64_t cp_s = *this;
-        cp_s.apply_white_move(mt);
-        if (maxing){
-            int v = maxi(cp_s, 1);
-            if (v <= best_v) {
-                best_v = v;
-                m = mt;
-            }
-        }
-        else{
-            int v = mini(cp_s, 1);
-            if (v >= best_v) {
-                best_v = v;
-                m = mt;
-            }
-        }
+  Move64_t m;
+  std::vector<Move64_t> M = lfr.get_white_moves();
+  int best_v = -INT_MAX;
+    
+  m = M[0];
+  for (Move64_t mt : M){
+    Board64_t cp_s = *this;
+    cp_s.apply_white_move(mt);
+    int v = mini(cp_s, 1);
+    if (v > best_v) {
+      best_v = v;
+      m = mt;
     }
-    return m;
+  }
+  return m;
 }
 inline Move64_t Board64_t::get_min_max_white_move() {
     uint64_t wl = white_left();
@@ -655,29 +643,21 @@ inline void Board64_t::min_max_white_move() {
 }
 
 inline Move64_t Board64_t::get_min_max_black_move(const Lfr_t &lfr) {
-    Move64_t m;
-    bool maxing = MINIMAX_MAX_DEPTH % 2 ? false : true;
-    std::vector<Move64_t> M = lfr.get_black_moves();
-    int best_v = maxing ? INT_MAX : -INT_MAX;
-    for (Move64_t mt : M){
-        Board64_t cp_s = *this;
-        cp_s.apply_black_move(mt);
-        if (maxing){
-            int v = maxi(cp_s, 1);
-            if (v <= best_v) {
-                best_v = v;
-                m = mt;
-            }
-        }
-        else{
-            int v = mini(cp_s, 1);
-            if (v >= best_v) {
-                best_v = v;
-                m = mt;
-            }
-        }
+  Move64_t m;
+  std::vector<Move64_t> M = lfr.get_black_moves();
+  int best_v = INT_MAX;
+    
+  m = M[0];
+  for (Move64_t mt : M){
+    Board64_t cp_s = *this;
+    cp_s.apply_black_move(mt);
+    int v = maxi(cp_s, 1); 
+    if (v < best_v) {
+      best_v = v;
+      m = mt;
     }
-    return m;
+  }
+  return m;
 }
 inline Move64_t Board64_t::get_min_max_black_move() {
     uint64_t wl = black_left();
@@ -740,10 +720,13 @@ void print_playout_perf_per_sec(bool _print) {
 
 
 int maxi(Board64_t& s, int d) {
-  std::vector<Move64_t> M;
+  if (s.white_win()) return 1000000 - d;
+  if (s.black_win()) return -1000000 + d;
+
   if (d == MINIMAX_MAX_DEPTH) {
     return s.eval(true);
   }
+  std::vector<Move64_t> M;
   M = Lfr_t(s.white_left(), s.white_forward(), s.white_right()).get_white_moves();
 
   if (M.size() == 0) {
@@ -763,15 +746,18 @@ int maxi(Board64_t& s, int d) {
 }
 
 int mini(Board64_t& s, int d) {
-  std::vector<Move64_t> M;
+  if (s.white_win()) return 1000000 - d; 
+  if (s.black_win()) return -1000000 + d; 
+
   if (d == MINIMAX_MAX_DEPTH) {
-    return s.eval(false);
+    return s.eval(true);
   }
+  std::vector<Move64_t> M;
 
   M = Lfr_t(s.black_left(), s.black_forward(), s.black_right()).get_black_moves();
   
   if (M.size() == 0) {
-    return s.eval(false);
+    return s.eval(true);
   }
 
   int best_v = INT_MAX;
