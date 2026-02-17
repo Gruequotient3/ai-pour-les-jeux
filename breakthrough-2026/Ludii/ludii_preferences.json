@@ -54,7 +54,7 @@
     "drawBottomCells": false,
     "ShowFaceCoordinates": false,
     "RecentGames_1": "Surakarta",
-    "FrameWidth": 554,
+    "FrameWidth": 846,
     "drawSlashEdges": false,
     "drawCornersCells": false,
     "OptionStrings": [
@@ -111,7 +111,7 @@
     "showZoomBox": false,
     "ShowIndices": false,
     "ShowEdgeCoordinates": false,
-    "FrameHeight": 723,
+    "FrameHeight": 564,
     "ShowBoard": true,
     "HideAiMoves": true,
     "ShowEdgeIndices": false,
@@ -127,13 +127,13 @@
     "ShowContainerIndices": false,
     "drawPerimeterCells": false,
     "AI_1": {"AI": {
-        "Class Name": "bk.MinMaxPlayerLocal",
-        "JAR File": "/home/gregghy/semester-6/ai-pour-les-jeux-greg/breakthrough-2026/Ludii/MinMaxPlayerLocal.jar",
+        "Class Name": "bk.MinMaxGSBSCLME",
+        "JAR File": "/home/gregghy/semester-6/ai-pour-les-jeux-greg/breakthrough-2026/Ludii/MinMaxGSBSCLME.jar",
         "algorithm": "From JAR"
     }},
     "AI_2": {"AI": {
-        "Class Name": "bk.MinMaxPlayerLocal",
-        "JAR File": "/home/gregghy/semester-6/ai-pour-les-jeux-greg/breakthrough-2026/Ludii/MinMaxPlayerLocal.jar",
+        "Class Name": "bk.RandPlayerLocal",
+        "JAR File": "/home/gregghy/semester-6/ai-pour-les-jeux-greg/breakthrough-2026/Ludii/RandPlayerLocal.jar",
         "algorithm": "From JAR"
     }},
     "ShowLastMove": false,
@@ -154,9 +154,10 @@
     "tabFontSize": 13,
     "ShowCellIndices": false,
     "drawPerimeterEdges": false,
-    "FrameLocX": 3,
+    "FrameLocX": 141,
     "AnimationVisualsType": "None",
-    "FrameLocY": 23,
+    "FrameLocY": 94,
+    "LastSelectedJarFile": "/home/gregghy/semester-6/ai-pour-les-jeux-greg/breakthrough-2026/Ludii/RandPlayerLocal.jar",
     "networkRefresh": false,
     "editorParseText": true,
     "TickLength": 0.1,
