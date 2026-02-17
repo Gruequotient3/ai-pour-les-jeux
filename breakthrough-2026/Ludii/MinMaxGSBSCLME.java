@@ -14,17 +14,17 @@ import java.io.InputStreamReader;
 import java.util.Map;
 import java.util.HashMap;
 
-public class MinMaxPlayerLocal extends AI
+public class MinMaxGSBSCLME extends AI
 {		
 	public final static int EMPTY = 0;
 	public final static int BLACK = 1;
 	public final static int WHITE = 2;
-	public final static String local_player_str = "../min_max_player";
+	public final static String local_player_str = "../min_max_gsbsclme";
 
 	protected int player = -1; // player_index
 	
-	public MinMaxPlayerLocal()	{
-			this.friendlyName = "MinMaxPlayerLocal";
+	public MinMaxGSBSCLME()	{
+			this.friendlyName = "MinMaxGSBSCLME";
 	}
 	
 	@Override
