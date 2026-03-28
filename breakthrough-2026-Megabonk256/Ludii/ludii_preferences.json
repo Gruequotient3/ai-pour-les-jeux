@@ -95,7 +95,7 @@
     "MenuNames_0": "Human",
     "MenuNames_1": "From JAR",
     "testLudeme2": "",
-    "MenuNames_2": "From JAR",
+    "MenuNames_2": "MCTS (Biased Selection)",
     "testLudeme3": "",
     "MenuNames_3": "Human",
     "MenuNames_4": "Human",
@@ -127,15 +127,11 @@
     "ShowContainerIndices": false,
     "drawPerimeterCells": false,
     "AI_1": {"AI": {
-        "Class Name": "bk.MinMaxGSBSCLME",
-        "JAR File": "/home/gregghy/semester-6/ai-pour-les-jeux-greg/breakthrough-2026-Megabonk256/Ludii/MinMaxGSBSCLME.jar",
+        "Class Name": "bk.mctsMegabonk",
+        "JAR File": "/home/gregghy/semester-6/ai-pour-les-jeux-greg/breakthrough-2026-Megabonk256/Ludii/mctsMegabonk.jar",
         "algorithm": "From JAR"
     }},
-    "AI_2": {"AI": {
-        "Class Name": "bk.ubfmMegabonk",
-        "JAR File": "/home/gregghy/semester-6/ai-pour-les-jeux-greg/breakthrough-2026-Megabonk256/Ludii/ubfmMegabonk.jar",
-        "algorithm": "From JAR"
-    }},
+    "AI_2": {"AI": {"algorithm": "MCTS (Biased Selection)"}},
     "ShowLastMove": false,
     "NoRepetitionWithinTurn": false,
     "drawCornersVertices": false,
@@ -157,7 +153,7 @@
     "FrameLocX": 4,
     "AnimationVisualsType": "None",
     "FrameLocY": 23,
-    "LastSelectedJarFile": "/home/gregghy/semester-6/ai-pour-les-jeux-greg/breakthrough-2026-Megabonk256/Ludii/ubfmMegabonk.jar",
+    "LastSelectedJarFile": "/home/gregghy/semester-6/ai-pour-les-jeux-greg/breakthrough-2026-Megabonk256/Ludii/mctsMegabonk.jar",
     "networkRefresh": false,
     "editorParseText": true,
     "TickLength": 0.1,
