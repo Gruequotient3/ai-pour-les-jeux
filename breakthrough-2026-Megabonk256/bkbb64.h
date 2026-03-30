@@ -335,7 +335,7 @@ inline int Board64_t::eval(const bool _white)
         wh &= wh - 1;
     }
     while (bl) {
-        int line = ((ffsll(bl) - 1) / 8) + 1 ;
+        int line = ((ffsll(bl) - 1) / 8); // + 1 ;
         score -= line;
         bl &= bl - 1;
     }

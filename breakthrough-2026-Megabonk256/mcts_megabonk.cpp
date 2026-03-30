@@ -4,166 +4,238 @@
 #include <iostream>
 #include <bitset>
 #include <chrono>
-#include <unordered_map>
-#include <climits>
 #include <vector>
 #include <cmath>
+#include <algorithm>
+#include <random>
 #include "bkbb64.h"
 
 #define WHITE 0
 #define BLACK 1
 
-struct State {
+// True random starting seed so the bot plays differently every match
+uint32_t global_seed = std::random_device{}();
+
+// Fast global arrays for Playout Policy Adaptation (PPA)
+int P_white[4096] = {0};
+int P_black[4096] = {0};
+
+struct Node {
     Board64_t b;
-    bool is_white;
-
-    bool operator==(const State& o) const {
-        return b.white == o.b.white && b.black == o.b.black && is_white == o.is_white;
+    bool is_white; 
+    double w;      
+    int n;         
+    int parent;
+    Move64_t move_from_parent;
+    
+    std::vector<Move64_t> unexpanded_moves;
+    std::vector<int> children;
+    bool is_terminal;
+    
+    Node(Board64_t _b, bool _is_white, int _parent, Move64_t _move) 
+        : b(_b), is_white(_is_white), w(0.0), n(0), parent(_parent), move_from_parent(_move) {
+        
+        if (b.white_win() || b.black_win()) {
+            is_terminal = true;
+        } else {
+            unexpanded_moves = is_white ? 
+                Lfr_t(b.white_left(), b.white_forward(), b.white_right()).get_white_moves() : 
+                Lfr_t(b.black_left(), b.black_forward(), b.black_right()).get_black_moves();
+            
+            is_terminal = unexpanded_moves.empty();
+        }
     }
 };
 
-struct StateHash {
-    std::size_t operator()(const State& s) const {
-        return std::hash<uint64_t>()(s.b.white) ^ 
-              (std::hash<uint64_t>()(s.b.black) << 1) ^ 
-              (std::hash<bool>()(s.is_white) << 2);
+inline int encode_move(Move64_t m) {
+    return (__builtin_ctzll(m.pi) << 6) | __builtin_ctzll(m.pf);
+}
+
+// Playout with 1-Ply Win Detection AND epsilon-greedy PPA
+void ppa_seq_playout(Board64_t& b, bool is_white, std::vector<Move64_t>& seq) {
+    while (true) {
+        if (b.white_win() || b.black_win()) break;
+        
+        std::vector<Move64_t> M = is_white ? 
+            Lfr_t(b.white_left(), b.white_forward(), b.white_right()).get_white_moves() : 
+            Lfr_t(b.black_left(), b.black_forward(), b.black_right()).get_black_moves();
+        
+        if (M.empty()) {
+            if (is_white) b.white = 0; else b.black = 0;
+            break;
+        }
+        
+        // --- THE FIX: 1-Ply Win Detector ---
+        // Breakthrough rules: White wins on Row 8 (0x00...ff), Black wins on Row 1 (0xff...00)
+        uint64_t win_mask = is_white ? 0x00000000000000ffULL : 0xff00000000000000ULL;
+        bool found_win = false;
+        Move64_t best_m = M[0];
+        
+        for (Move64_t m : M) {
+            if (m.pf & win_mask) {
+                best_m = m;
+                found_win = true;
+                break;
+            }
+        }
+        
+        // If there is no immediate win, fall back to PPA logic
+        if (!found_win) {
+            global_seed = rand_xorshift(global_seed);
+            
+            if ((global_seed % 100) < 25) {
+                best_m = M[global_seed % M.size()]; // Explore
+            } else {
+                int max_p = -1;
+                for (Move64_t m : M) {
+                    int enc = encode_move(m);
+                    int p_val = is_white ? P_white[enc] : P_black[enc];
+                    if (p_val > max_p) {
+                        max_p = p_val;
+                        best_m = m;
+                    }
+                }
+            }
+        }
+        
+        seq.push_back(best_m);
+        b.apply_move(best_m, is_white);
+        is_white = !is_white;
     }
-};
-
-struct NodeData {
-    double w;
-    int n;
-};
-
-std::unordered_map<State, NodeData, StateHash> H;
-State ROOT_STATE;
-uint32_t global_seed = 123456789;
+}
 
 Move64_t get_mcts_move(Board64_t start_board, bool is_white) {
-    H.clear();
-    
-    ROOT_STATE.b = start_board;
-    ROOT_STATE.is_white = is_white;
-    H[ROOT_STATE] = {0.0, 0};
+    // --- Instant Win Check at Root ---
+    std::vector<Move64_t> root_moves = is_white ? 
+        Lfr_t(start_board.white_left(), start_board.white_forward(), start_board.white_right()).get_white_moves() : 
+        Lfr_t(start_board.black_left(), start_board.black_forward(), start_board.black_right()).get_black_moves();
+        
+    uint64_t root_win_mask = is_white ? 0x00000000000000ffULL : 0xff00000000000000ULL;
+    for (Move64_t m : root_moves) {
+        if (m.pf & root_win_mask) return m; // Why think for 1s if we can win right now?
+    }
 
-    auto start_time = std::chrono::steady_clock::now();
+    std::vector<Node> tree;
+    tree.reserve(2000000); 
+
+    Move64_t dummy_move;
+    dummy_move.pi = 0; dummy_move.pf = 0;
+    tree.emplace_back(start_board, is_white, -1, dummy_move);
+
     int iter = 0;
-
-    while (true) { 
-        // Time management: maximize the 1 second limit (950ms to leave a buffer)
-        if ((iter & 255) == 0) { 
+    auto start_time = std::chrono::steady_clock::now();
+    
+    while (true) {
+        if ((iter & 255) == 0) {
             auto current_time = std::chrono::steady_clock::now();
             auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(current_time - start_time).count();
             if (elapsed > 950) break; 
         }
         iter++;
 
-        // 1. Selection & Expansion
-        std::vector<State> path;
-        State current = ROOT_STATE;
-        path.push_back(current);
-        
-        while (true) {
-            if (current.b.white_win() || current.b.black_win()) break;
-            
-            std::vector<Move64_t> M = current.is_white ? 
-                Lfr_t(current.b.white_left(), current.b.white_forward(), current.b.white_right()).get_white_moves() : 
-                Lfr_t(current.b.black_left(), current.b.black_forward(), current.b.black_right()).get_black_moves();
-            
-            if (M.empty()) break;
-            
-            bool unexpanded = false;
-            State unvisited;
-            
-            // Look for unexpanded children
-            for (Move64_t m : M) {
-                State s_prime = current;
-                s_prime.b.apply_move(m, current.is_white);
-                s_prime.is_white = !current.is_white;
-                
-                if (H.find(s_prime) == H.end()) {
-                    unvisited = s_prime;
-                    unexpanded = true;
-                    break;
-                }
-            }
-            
-            if (unexpanded) {
-                current = unvisited;
-                H[current] = {0.0, 0};
-                path.push_back(current);
-                break;
-            }
-            
-            // All children expanded, select via UCT
+        // 1. Selection
+        int current = 0; 
+        while (!tree[current].is_terminal && tree[current].unexpanded_moves.empty()) {
             double max_uct = -1.0;
-            State best_child = current;
-            double log_N = std::log(H[current].n);
+            std::vector<int> best_children;
+            double log_N = std::log(tree[current].n);
             
-            for (Move64_t m : M) {
-                State s_prime = current;
-                s_prime.b.apply_move(m, current.is_white);
-                s_prime.is_white = !current.is_white;
+            for (int child_idx : tree[current].children) {
+                double w = tree[child_idx].w;
+                double n = tree[child_idx].n;
                 
-                double w = H[s_prime].w;
-                double n = H[s_prime].n;
-                
-                // Maximize White wins if White's turn, maximize Black wins if Black's turn
-                double exploit = current.is_white ? (w / n) : ((n - w) / n);
-                double explore = 0.4 * std::sqrt(log_N / n);
+                double exploit = tree[current].is_white ? (w / n) : ((n - w) / n);
+                double explore = 0.4 * std::sqrt(log_N / n); 
                 double uct = exploit + explore;
                 
-                if (uct > max_uct) {
+                if (uct > max_uct + 1e-6) {
                     max_uct = uct;
-                    best_child = s_prime;
+                    best_children.clear();
+                    best_children.push_back(child_idx);
+                } else if (std::abs(uct - max_uct) <= 1e-6) {
+                    best_children.push_back(child_idx);
                 }
             }
             
-            current = best_child;
-            path.push_back(current);
-        }
-        
-        // 2. Simulation (Playout)
-        double r = 0.0;
-        if (current.b.white_win()) {
-            r = 1.0;
-        } else if (current.b.black_win()) {
-            r = 0.0;
-        } else {
-            Board64_t sim_b = current.b;
+            if (best_children.empty()) break; 
+            
             global_seed = rand_xorshift(global_seed);
-            sim_b.seed = global_seed; // Break determinism across identical node visits
-            sim_b.seq_playout(current.is_white);
+            current = best_children[global_seed % best_children.size()];
+        }
+
+        // 2. Expansion
+        if (!tree[current].is_terminal && !tree[current].unexpanded_moves.empty()) {
+            global_seed = rand_xorshift(global_seed);
+            int move_idx = global_seed % tree[current].unexpanded_moves.size();
+            
+            Move64_t m = tree[current].unexpanded_moves[move_idx];
+            tree[current].unexpanded_moves[move_idx] = tree[current].unexpanded_moves.back();
+            tree[current].unexpanded_moves.pop_back();
+            
+            Board64_t next_b = tree[current].b;
+            next_b.apply_move(m, tree[current].is_white);
+            
+            int new_node_idx = tree.size();
+            tree.emplace_back(next_b, !tree[current].is_white, current, m);
+            tree[current].children.push_back(new_node_idx);
+            
+            current = new_node_idx;
+        }
+
+        // 3. Simulation with PPA & Win Detection
+        double r = 0.0;
+        std::vector<Move64_t> seq;
+        
+        if (tree[current].b.white_win()) {
+            r = 1.0;
+        } else if (tree[current].b.black_win()) {
+            r = 0.0;
+        } else if (tree[current].is_terminal) {
+            r = tree[current].is_white ? 0.0 : 1.0; 
+        } else {
+            Board64_t sim_b = tree[current].b;
+            global_seed = rand_xorshift(global_seed);
+            sim_b.seed = global_seed;
+            ppa_seq_playout(sim_b, tree[current].is_white, seq);
             r = sim_b.white_win() ? 1.0 : 0.0;
         }
-        
-        // 3. Backpropagation
-        for (State& p : path) {
-            H[p].n += 1;
-            H[p].w += r;
-        }
-    }
-    
-    // Choose the most robust child (highest visit count)
-    std::vector<Move64_t> M = is_white ? 
-        Lfr_t(start_board.white_left(), start_board.white_forward(), start_board.white_right()).get_white_moves() : 
-        Lfr_t(start_board.black_left(), start_board.black_forward(), start_board.black_right()).get_black_moves();
-    
-    Move64_t best_move = M[0];
-    int max_visits = -1;
 
-    for (Move64_t m : M) {
-        State s_prime = ROOT_STATE;
-        s_prime.b.apply_move(m, is_white);
-        s_prime.is_white = !is_white;
-        
-        if (H.find(s_prime) != H.end()) {
-            if (H[s_prime].n > max_visits) { 
-                max_visits = H[s_prime].n; 
-                best_move = m; 
+        // PPA Adaptation Phase
+        bool turn_is_white = tree[current].is_white;
+        for (Move64_t m : seq) {
+            int enc = encode_move(m);
+            if (r == 1.0) { 
+                if (turn_is_white) P_white[enc]++;
+                else P_black[enc] = std::max(0, P_black[enc] - 1);
+            } else { 
+                if (!turn_is_white) P_black[enc]++;
+                else P_white[enc] = std::max(0, P_white[enc] - 1);
             }
+            turn_is_white = !turn_is_white;
+        }
+
+        // 4. Backpropagation
+        int node = current;
+        while (node != -1) {
+            tree[node].n += 1;
+            tree[node].w += r;
+            node = tree[node].parent;
         }
     }
+
+    // Return most visited child
+    int best_visits = -1;
+    Move64_t best_move = tree[0].children.empty() ? dummy_move : tree[tree[0].children[0]].move_from_parent;
+    
+    for (int child_idx : tree[0].children) {
+        if (tree[child_idx].n > best_visits) {
+            best_visits = tree[child_idx].n;
+            best_move = tree[child_idx].move_from_parent;
+        }
+    }
+
+    if (best_visits == -1 && !root_moves.empty()) best_move = root_moves[0];
+
     return best_move;
 }
 
@@ -189,10 +261,6 @@ int main(int _ac, char** _av) {
         return 0;
     }
     Board64_t B(_av[1]);
-    bool debug = true;
-    if(debug) {
-        B.print_board(stderr);
-    }
     if(std::string(_av[2]).compare("O")==0) {
         printf("%s\n", genmove(B, WHITE).c_str());
     } else if(std::string(_av[2]).compare("@")==0) {
