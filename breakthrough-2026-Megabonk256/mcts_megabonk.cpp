@@ -116,7 +116,7 @@ Move64_t get_mcts_move(Board64_t start_board, bool is_white) {
     }
 
     std::vector<Node> tree;
-    tree.reserve(2000000); 
+    tree.reserve(100000000); 
 
     Move64_t dummy_move;
     dummy_move.pi = 0; dummy_move.pf = 0;

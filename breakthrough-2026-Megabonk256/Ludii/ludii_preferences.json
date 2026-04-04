@@ -93,9 +93,9 @@
     "drawRightVertices": false,
     "drawCentreEdges": false,
     "MenuNames_0": "Human",
-    "MenuNames_1": "From JAR",
+    "MenuNames_1": "UBFM",
     "testLudeme2": "",
-    "MenuNames_2": "UBFM",
+    "MenuNames_2": "From JAR",
     "testLudeme3": "",
     "MenuNames_3": "Human",
     "MenuNames_4": "Human",
@@ -126,12 +126,12 @@
     "ShowPossibleMoves": false,
     "ShowContainerIndices": false,
     "drawPerimeterCells": false,
-    "AI_1": {"AI": {
+    "AI_1": {"AI": {"algorithm": "UBFM"}},
+    "AI_2": {"AI": {
         "Class Name": "bk.mctsMegabonk",
         "JAR File": "/home/gregghy/semester-6/ai-pour-les-jeux-greg/breakthrough-2026-Megabonk256/Ludii/mctsMegabonk.jar",
         "algorithm": "From JAR"
     }},
-    "AI_2": {"AI": {"algorithm": "UBFM"}},
     "ShowLastMove": false,
     "NoRepetitionWithinTurn": false,
     "drawCornersVertices": false,
